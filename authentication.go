@@ -56,7 +56,7 @@ func AuthHandler(w radius.ResponseWriter, r *radius.Request) {
 			log.Fatal(err)
 		}
 	} else if (user.Innertag < vlan_low || user.Innertag > vlan_high || user.Outertag < vlan_low || user.Outertag > vlan_high) {
-		log.Printf("Vlan out of bounds: %i-%i", user.Innertag, user.Outertag)
+		log.Printf("Vlan out of bounds: %d-%d", user.Innertag, user.Outertag)
 		err := w.Write(resp)
 		if err != nil {
 			log.Fatal(err)
