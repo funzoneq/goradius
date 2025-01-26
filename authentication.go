@@ -2,17 +2,17 @@ package main
 
 import (
 	"os"
-	"log"
 	"regexp"
 	"strconv"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/funzoneq/go-radius-dictionaries/erx"
 	"layeh.com/radius"
 	"layeh.com/radius/rfc2865"
 )
 
-const vlan_low = 1
-const vlan_high = 4000
+const vlan_low = 2
+const vlan_high = 4094
 
 type UserIdentifier struct {
 	Router string
@@ -56,7 +56,7 @@ func AuthHandler(w radius.ResponseWriter, r *radius.Request) {
 			log.Fatal(err)
 		}
 	} else if (user.Innertag < vlan_low || user.Innertag > vlan_high || user.Outertag < vlan_low || user.Outertag > vlan_high) {
-		log.Printf("Vlan out of bounds: %d-%d", user.Innertag, user.Outertag)
+		log.Printf("Vlan out of bounds: %d-%d", user.Outertag, user.Innertag)
 		err := w.Write(resp)
 		if err != nil {
 			log.Fatal(err)
