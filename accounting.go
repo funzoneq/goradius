@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/funzoneq/go-radius-dictionaries/erx"
+	log "github.com/sirupsen/logrus"
 	"layeh.com/radius"
 	"layeh.com/radius/rfc2865"
 	"layeh.com/radius/rfc2866"
@@ -46,13 +46,13 @@ func AccountingHandler(w radius.ResponseWriter, r *radius.Request) {
 
 func AccountingServer() {
 	AccountingServer := radius.PacketServer{
-		Addr: 		  ":1813",
+		Addr:         ":1813",
 		Handler:      radius.HandlerFunc(AccountingHandler),
 		SecretSource: radius.StaticSecretSource([]byte(os.Getenv("RADIUS_SECRET"))),
 	}
 
 	log.Printf("Starting accounting server on :1813")
-	err := AccountingServer.ListenAndServe();
+	err := AccountingServer.ListenAndServe()
 	if err != nil {
 		log.Fatal(err)
 	}

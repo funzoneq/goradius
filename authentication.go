@@ -1,43 +1,18 @@
 package main
 
 import (
+	"fmt"
 	"os"
-	"regexp"
-	"strconv"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/funzoneq/go-radius-dictionaries/erx"
+	log "github.com/sirupsen/logrus"
 	"layeh.com/radius"
 	"layeh.com/radius/rfc2865"
 )
 
-const vlan_low = 2
-const vlan_high = 4094
-
-type UserIdentifier struct {
-	Router string
-	Interface string
-	Outertag int
-	Innertag int
-}
-
-func matchUserIdentifier(Username string) UserIdentifier {
-	// Regex edgegw01-somesite.ps36:2017-10001
-	valid_username := regexp.MustCompile(`(?P<router>[\w-]+)\.(?P<intf>ps\d+)\:(?P<outertag>\d+)\-(?P<innertag>\d+)`)
-	res := valid_username.FindStringSubmatch(Username)
-
-	outertag, _ := strconv.Atoi(res[3])
-	innertag, _ := strconv.Atoi(res[4])
-
-	user := UserIdentifier{
-		Router: res[1],
-		Interface: res[2],
-		Outertag: outertag,
-		Innertag: innertag,
-	}
-
-	return user
-}
+// const vlan_low = 2
+// const vlan_high = 4094
+var subscribers []Subscriber
 
 func AuthHandler(w radius.ResponseWriter, r *radius.Request) {
 	username := rfc2865.UserName_GetString(r.Packet)
@@ -47,7 +22,7 @@ func AuthHandler(w radius.ResponseWriter, r *radius.Request) {
 	resp := r.Response(radius.CodeAccessReject)
 
 	// Match user information
-	user := matchUserIdentifier(username)
+	user := findSubscriber(subscribers, username)
 
 	if password != os.Getenv("RADIUS_SECRET") {
 		log.Printf("Login failed: %s", username)
@@ -55,17 +30,24 @@ func AuthHandler(w radius.ResponseWriter, r *radius.Request) {
 		if err != nil {
 			log.Fatal(err)
 		}
-	} else if (user.Innertag < vlan_low || user.Innertag > vlan_high || user.Outertag < vlan_low || user.Outertag > vlan_high) {
-		log.Printf("Vlan out of bounds: %d-%d", user.Outertag, user.Innertag)
+	} else if user == nil {
+		log.Printf("User is not found: %s", username)
 		err := w.Write(resp)
 		if err != nil {
 			log.Fatal(err)
 		}
+	} else if user.Status != "active" {
+		log.Printf("User is not active: %s", user.Identifier)
+		err := w.Write(resp)
+		if err != nil {
+			log.Fatal(err)
+		}
+		// TODO: Add check for vlan out of bounds
 	} else {
 		// Login succeeded
 		resp = r.Response(radius.CodeAccessAccept)
 
-		vrf := "default:BNG-Users"
+		vrf := fmt.Sprintf("default:%s", user.VRF)
 		v4_filter_in := "DEFAULT-FILTER-ACCEPT-V4"
 		v4_filter_out := "DEFAULT-FILTER-ACCEPT-V4"
 		v6_filter_in := "DEFAULT-FILTER-ACCEPT-V6"
@@ -75,6 +57,14 @@ func AuthHandler(w radius.ResponseWriter, r *radius.Request) {
 		err := erx.ERXVirtualRouterName_AddString(resp, vrf)
 		if err != nil {
 			log.Print("Error adding VRF ", err)
+		}
+
+		for _, staticRoute := range user.StaticRoutes {
+			err = rfc2865.FramedRoute_AddString(resp, staticRoute)
+			if err != nil {
+				log.Errorf("Error adding static route %v", err)
+			}
+			log.Debugf("Added static route %v for user %v", staticRoute, username)
 		}
 
 		// Add IPv6 Ingress policy / policer
@@ -110,15 +100,17 @@ func AuthHandler(w radius.ResponseWriter, r *radius.Request) {
 	}
 }
 
-func AuthServer() {
+func AuthServer(subs []Subscriber) {
+	subscribers = subs
+
 	AuthServer := radius.PacketServer{
-		Addr: 		  ":1812",
+		Addr:         ":1812",
 		Handler:      radius.HandlerFunc(AuthHandler),
 		SecretSource: radius.StaticSecretSource([]byte(os.Getenv("RADIUS_SECRET"))),
 	}
 
 	log.Printf("Starting authentication server on :1812")
-	err := AuthServer.ListenAndServe();
+	err := AuthServer.ListenAndServe()
 	if err != nil {
 		log.Fatal(err)
 	}
