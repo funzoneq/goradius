@@ -48,10 +48,8 @@ func AuthHandler(w radius.ResponseWriter, r *radius.Request) {
 		resp = r.Response(radius.CodeAccessAccept)
 
 		vrf := fmt.Sprintf("default:%s", user.VRF)
-		v4_filter_in := "DEFAULT-FILTER-ACCEPT-V4"
-		v4_filter_out := "DEFAULT-FILTER-ACCEPT-V4"
-		v6_filter_in := "DEFAULT-FILTER-ACCEPT-V6"
-		v6_filter_out := "DEFAULT-FILTER-ACCEPT-V6"
+		filter_in := fmt.Sprintf("DEFAULT-FILTER-%s", user.SpeedUp)
+		filter_out := fmt.Sprintf("DEFAULT-FILTER-%s", user.SpeedDown)
 
 		// Add VRF / Routing Instance
 		err := erx.ERXVirtualRouterName_AddString(resp, vrf)
@@ -67,29 +65,19 @@ func AuthHandler(w radius.ResponseWriter, r *radius.Request) {
 			log.Debugf("Added static route %v for user %v", staticRoute, username)
 		}
 
-		// Add IPv6 Ingress policy / policer
-		err = erx.ERXIPv6IngressPolicyName_AddString(resp, v6_filter_in)
+		// Add Ingress policy / policer
+		err = erx.ERXInputInterfaceFilter_AddString(resp, filter_in)
 		if err != nil {
-			log.Print("Error adding IPv6 ingress ", err)
+			log.Printf("Error adding ingress interface filter %v", err)
 		}
+		log.Debugf("Added input filter %v for user %v", filter_in, username)
 
-		// Add IPv6 Egress policy / policer
-		err = erx.ERXIPv6EgressPolicyName_AddString(resp, v6_filter_out)
+		// Add Egress policy / policer
+		err = erx.ERXOutputInterfaceFilter_AddString(resp, filter_out)
 		if err != nil {
-			log.Print("Error adding IPv6 egress ", err)
+			log.Errorf("Error adding egress interface filter %v", err)
 		}
-
-		// Add IPv4 Ingress policy / policer
-		err = erx.ERXIngressPolicyName_AddString(resp, v4_filter_in)
-		if err != nil {
-			log.Print("Error adding IPv4 ingress ", err)
-		}
-
-		// Add IPv4 Egress policy / policer
-		err = erx.ERXEgressPolicyName_AddString(resp, v4_filter_out)
-		if err != nil {
-			log.Print("Error adding IPv4 egress ", err)
-		}
+		log.Debugf("Added output filter %v for user %v", filter_out, username)
 
 		log.Printf("User authenticated successfully %s", username)
 
