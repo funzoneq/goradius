@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/funzoneq/go-radius-dictionaries/erx"
 	log "github.com/sirupsen/logrus"
@@ -12,7 +11,6 @@ import (
 
 // const vlan_low = 2
 // const vlan_high = 4094
-var subscribers []Subscriber
 
 func AuthHandler(w radius.ResponseWriter, r *radius.Request) {
 	username := rfc2865.UserName_GetString(r.Packet)
@@ -24,7 +22,7 @@ func AuthHandler(w radius.ResponseWriter, r *radius.Request) {
 	// Match user information
 	user := findSubscriber(subscribers, username)
 
-	if password != os.Getenv("RADIUS_SECRET") {
+	if password != Config.RadiusSecret {
 		log.Printf("Login failed: %s", username)
 		err := w.Write(resp)
 		if err != nil {
@@ -92,12 +90,12 @@ func AuthServer(subs []Subscriber) {
 	subscribers = subs
 
 	AuthServer := radius.PacketServer{
-		Addr:         ":1812",
+		Addr:         Config.AuthListenAddress,
 		Handler:      radius.HandlerFunc(AuthHandler),
-		SecretSource: radius.StaticSecretSource([]byte(os.Getenv("RADIUS_SECRET"))),
+		SecretSource: radius.StaticSecretSource([]byte(Config.RadiusSecret)),
 	}
 
-	log.Printf("Starting authentication server on :1812")
+	log.Printf("Starting authentication server on %s", Config.AuthListenAddress)
 	err := AuthServer.ListenAndServe()
 	if err != nil {
 		log.Fatal(err)
