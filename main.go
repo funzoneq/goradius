@@ -8,20 +8,20 @@ import (
 )
 
 var (
-	configFile = "/etc/goradius/goradius.conf"
-	debug      = false
+	ConfigFile = "/etc/goradius/goradius.conf"
+	Debug      = false
 	Config     = &GoradiusConfig{} // Holds the GoRADIUS configuration data
 )
 
 var subscribers []Subscriber
 
 func main() {
-	flag.StringVar(&configFile, "config", "/etc/goradius/goradius.conf", "Path to GoRADIUS config file")
-	flag.BoolVar(&debug, "debug", false, "Show debug logging")
+	flag.StringVar(&ConfigFile, "config", "/etc/goradius/goradius.conf", "Path to GoRADIUS config file")
+	flag.BoolVar(&Debug, "debug", false, "Show debug logging")
 
 	flag.Parse()
 
-	if debug {
+	if Debug {
 		log.SetLevel(log.DebugLevel)
 	} else {
 		log.SetLevel(log.InfoLevel)
@@ -30,7 +30,7 @@ func main() {
 	log.SetOutput(os.Stdout)
 
 	// Load config from file
-	Config.ReadConfig(configFile)
+	Config.ReadConfig(ConfigFile)
 
 	// Load subscribers from file
 	subscribers, err := loadSubscribers(Config.CustomerFile)
