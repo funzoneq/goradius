@@ -1,0 +1,15 @@
+[Unit]
+Description=Goradius service
+After=network.target
+StartLimitIntervalSec=60
+
+[Service]
+Type=simple
+User=goradius
+Group=goradius
+Restart=on-failure
+RestartSec=10
+ExecStart=/usr/local/bin/goradius
+
+[Install]
+WantedBy=multi-user.target
