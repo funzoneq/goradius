@@ -8,6 +8,12 @@ import (
 	"layeh.com/radius/rfc2866"
 )
 
+// Constants
+const (
+	acctStatisticsMode = 2    // 0 = disable; 1 = track time only; 2 = track traffic volume and time
+	acctUpdateInterval = 3600 // Update interval in seconds
+)
+
 func DebugRadiusPacket(r *radius.Request) {
 	username := rfc2865.UserName_GetString(r.Packet)
 	acctID := rfc2866.AcctSessionID_GetString(r.Packet)
@@ -40,6 +46,41 @@ func AccountingHandler(w radius.ResponseWriter, r *radius.Request) {
 	}
 
 	log.Printf("Accounting packet received")
+
+	username := rfc2865.UserName_GetString(r.Packet)
+	acctID := rfc2866.AcctSessionID_GetString(r.Packet)
+	accountingStatus := rfc2866.AcctStatusType_Get(r.Packet)
+
+	// Handling per-subscriber packets
+	switch accountingStatus {
+	case rfc2866.AcctStatusType_Value_Start:
+		log.Infof("Start accounting for %v acctID %v", username, acctID)
+	case rfc2866.AcctStatusType_Value_Stop:
+		log.Infof("Stop accounting for %v acctID %v cause: %v", rfc2865.UserName_GetString(r.Packet), rfc2866.AcctSessionID_GetString(r.Packet), rfc2866.AcctTerminateCause_Get(r.Packet))
+	case rfc2866.AcctStatusType_Value_InterimUpdate:
+		log.Infof("Interim update for %v acctID %v", username, acctID)
+	default:
+		log.Debugf("Got accounting packet with type %v from %v", rfc2866.AcctStatusType_Strings[accountingStatus], rfc2865.NASIdentifier_GetString(r.Packet))
+	}
+
+	resp := r.Response(radius.CodeAccountingResponse)
+
+	// Tag 0 (0x00) is the statistics mode
+	err := erx.ERXServiceStatistics_Add(resp, 0x00, acctStatisticsMode)
+	if err != nil {
+		log.Errorf("Could not add Service Statistics: %v", err)
+	}
+
+	// Tag 0 (0x00) is the accounting update interval
+	err = erx.ERXServiceAcctInterval_Add(resp, 0x00, acctUpdateInterval)
+	if err != nil {
+		log.Errorf("Could not add Service Accounting Interval: %v", err)
+	}
+
+	err = w.Write(resp)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func AccountingServer() {
