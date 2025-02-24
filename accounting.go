@@ -1,6 +1,8 @@
 package main
 
 import (
+	"time"
+
 	"github.com/funzoneq/go-radius-dictionaries/erx"
 	log "github.com/sirupsen/logrus"
 	"layeh.com/radius"
@@ -39,6 +41,8 @@ func DebugRadiusPacket(r *radius.Request) {
 }
 
 func AccountingHandler(w radius.ResponseWriter, r *radius.Request) {
+	userInfo := UserInfo{}
+	userInfo.startTime = time.Now()
 	DebugRadiusPacket(r)
 
 	if r.Code != radius.CodeAccountingRequest {
@@ -47,9 +51,35 @@ func AccountingHandler(w radius.ResponseWriter, r *radius.Request) {
 
 	log.Printf("Accounting packet received")
 
+	// Default response
+	resp := r.Response(radius.CodeAccountingResponse)
+
 	username := rfc2865.UserName_GetString(r.Packet)
+	userInfo.Identifier = username
 	acctID := rfc2866.AcctSessionID_GetString(r.Packet)
 	accountingStatus := rfc2866.AcctStatusType_Get(r.Packet)
+
+	res, err := ParseUsername(username)
+	if err != nil {
+		log.Errorf("Username parsing error: %v", err)
+	} else {
+		userInfo.site = res[1]
+	}
+
+	switch accountingStatus {
+	// These types of packets get sent on starting/stopping the RADIUS service on the BNG
+	case rfc2866.AcctStatusType_Value_AccountingOn:
+		log.Debugf("Got Accounting-On accounting packet from %v", rfc2865.NASIdentifier_GetString(r.Packet))
+		return
+	case rfc2866.AcctStatusType_Value_AccountingOff:
+		log.Debugf("Got Accounting-Off accounting packet from %v", rfc2865.NASIdentifier_GetString(r.Packet))
+		return
+	case rfc2866.AcctStatusType_Value_Failed:
+		log.Errorf("Got Failed accounting packet from %v", rfc2865.NASIdentifier_GetString(r.Packet))
+		return
+	default:
+		log.Debugf("Got accounting packet with type %v from %v", rfc2866.AcctStatusType_Strings[accountingStatus], rfc2865.NASIdentifier_GetString(r.Packet))
+	}
 
 	// Handling per-subscriber packets
 	switch accountingStatus {
@@ -63,10 +93,8 @@ func AccountingHandler(w radius.ResponseWriter, r *radius.Request) {
 		log.Debugf("Got accounting packet with type %v from %v", rfc2866.AcctStatusType_Strings[accountingStatus], rfc2865.NASIdentifier_GetString(r.Packet))
 	}
 
-	resp := r.Response(radius.CodeAccountingResponse)
-
 	// Tag 0 (0x00) is the statistics mode
-	err := erx.ERXServiceStatistics_Add(resp, 0x00, acctStatisticsMode)
+	err = erx.ERXServiceStatistics_Add(resp, 0x00, acctStatisticsMode)
 	if err != nil {
 		log.Errorf("Could not add Service Statistics: %v", err)
 	}
@@ -77,10 +105,7 @@ func AccountingHandler(w radius.ResponseWriter, r *radius.Request) {
 		log.Errorf("Could not add Service Accounting Interval: %v", err)
 	}
 
-	err = w.Write(resp)
-	if err != nil {
-		log.Fatal(err)
-	}
+	writeResponse(w, resp, userInfo)
 }
 
 func AccountingServer() {

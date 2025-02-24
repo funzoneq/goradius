@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/funzoneq/go-radius-dictionaries/erx"
 	log "github.com/sirupsen/logrus"
@@ -13,33 +14,45 @@ import (
 // const vlan_high = 4094
 
 func AuthHandler(w radius.ResponseWriter, r *radius.Request) {
-	username := rfc2865.UserName_GetString(r.Packet)
-	password := rfc2865.UserPassword_GetString(r.Packet)
+	userInfo := UserInfo{}
+	userInfo.startTime = time.Now()
 
 	// Default response is denied.
 	resp := r.Response(radius.CodeAccessReject)
 
+	password := rfc2865.UserPassword_GetString(r.Packet)
+	username := rfc2865.UserName_GetString(r.Packet)
+	userInfo.Identifier = username
+
 	// Match user information
-	user := findSubscriber(subscribers, username)
+	user := findSubscriber(subscribers, username, &userInfo)
 
 	if password != Config.RadiusSecret {
 		log.Printf("Login failed: %s", username)
-		err := w.Write(resp)
-		if err != nil {
-			log.Fatal(err)
-		}
+		writeResponse(w, resp, userInfo)
+		return
 	} else if user == nil {
 		log.Printf("User is not found: %s", username)
-		err := w.Write(resp)
-		if err != nil {
-			log.Fatal(err)
-		}
+		writeResponse(w, resp, userInfo)
+		return
 	} else if user.Status != "active" {
 		log.Printf("User is not active: %s", user.Identifier)
-		err := w.Write(resp)
-		if err != nil {
-			log.Fatal(err)
+
+		if Config.CaptivePortalEnabled {
+			resp = r.Response(radius.CodeAccessAccept)
+
+			// Add Portal VRF
+			err := erx.ERXVirtualRouterName_AddString(resp, "default:Portal")
+			if err != nil {
+				log.Print("Error adding VRF ", err)
+			}
+
+			writeResponse(w, resp, userInfo)
+			return
 		}
+
+		writeResponse(w, resp, userInfo)
+		return
 		// TODO: Add check for vlan out of bounds
 	} else {
 		// Login succeeded
@@ -79,10 +92,8 @@ func AuthHandler(w radius.ResponseWriter, r *radius.Request) {
 
 		log.Printf("User authenticated successfully %s", username)
 
-		err = w.Write(resp)
-		if err != nil {
-			log.Fatal(err)
-		}
+		writeResponse(w, resp, userInfo)
+		return
 	}
 }
 

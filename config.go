@@ -8,10 +8,12 @@ import (
 )
 
 type GoradiusConfig struct {
-	RadiusSecret      string
-	AuthListenAddress string
-	AcctListenAddress string
-	CustomerFile      string
+	RadiusSecret         string
+	AuthListenAddress    string
+	AcctListenAddress    string
+	MetricsListenAddress string
+	CustomerFile         string
+	CaptivePortalEnabled bool
 }
 
 // ReadConfig reads and parses the RADIUS configuration from JSON format from the given filepath, and fails on invalid configuration values.

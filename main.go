@@ -40,5 +40,6 @@ func main() {
 	}
 
 	go AccountingServer()
+	go MetricsEndpoint()
 	AuthServer(subscribers)
 }
