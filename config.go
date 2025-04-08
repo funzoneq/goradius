@@ -14,6 +14,10 @@ type GoradiusConfig struct {
 	MetricsListenAddress string
 	CustomerFile         string
 	CaptivePortalEnabled bool
+	AuthEnabled 		 bool
+	DefaultVRF			 string
+	DefaultUploadSpeed	 string
+	DefaultDownloadSpeed string
 }
 
 // ReadConfig reads and parses the RADIUS configuration from JSON format from the given filepath, and fails on invalid configuration values.

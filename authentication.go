@@ -29,10 +29,27 @@ func AuthHandler(w radius.ResponseWriter, r *radius.Request) {
 
 	if password != Config.RadiusSecret {
 		log.Printf("Login failed: %s", username)
+
 		writeResponse(w, resp, userInfo)
 		return
 	} else if user == nil {
 		log.Printf("User is not found: %s", username)
+
+		if Config.CaptivePortalEnabled {
+			resp = r.Response(radius.CodeAccessAccept)
+
+			// Add Portal VRF
+			err := erx.ERXVirtualRouterName_AddString(resp, "default:Portal")
+			if err != nil {
+				log.Print("Error adding VRF ", err)
+			}
+
+			log.Printf("User send to captive portal: %s", username)
+
+			writeResponse(w, resp, userInfo)
+			return
+		}
+
 		writeResponse(w, resp, userInfo)
 		return
 	} else if user.Status != "active" {
@@ -46,6 +63,8 @@ func AuthHandler(w radius.ResponseWriter, r *radius.Request) {
 			if err != nil {
 				log.Print("Error adding VRF ", err)
 			}
+
+			log.Printf("User send to captive portal: %s", username)
 
 			writeResponse(w, resp, userInfo)
 			return
@@ -97,12 +116,63 @@ func AuthHandler(w radius.ResponseWriter, r *radius.Request) {
 	}
 }
 
+func AllowAllAuthHandler(w radius.ResponseWriter, r *radius.Request) {
+	userInfo := UserInfo{}
+	userInfo.startTime = time.Now()
+
+	password := rfc2865.UserPassword_GetString(r.Packet)
+	username := rfc2865.UserName_GetString(r.Packet)
+
+	if password != Config.RadiusSecret {
+		log.Printf("Login failed: %s", username)
+
+		writeResponse(w, r.Response(radius.CodeAccessReject), userInfo)
+		return
+	}
+
+	resp := r.Response(radius.CodeAccessAccept)
+
+	vrf := fmt.Sprintf("default:%s", Config.DefaultVRF)
+	filter_in := fmt.Sprintf("DEFAULT-FILTER-%s", Config.DefaultUploadSpeed)
+	filter_out := fmt.Sprintf("DEFAULT-FILTER-%s", Config.DefaultDownloadSpeed)
+
+	// Add VRF / Routing Instance
+	err := erx.ERXVirtualRouterName_AddString(resp, vrf)
+	if err != nil {
+		log.Print("Error adding VRF ", err)
+	}
+
+	// Add Ingress policy / policer
+	err = erx.ERXInputInterfaceFilter_AddString(resp, filter_in)
+	if err != nil {
+		log.Printf("Error adding ingress interface filter %v", err)
+	}
+	log.Debugf("Added input filter %v for user %v", filter_in, username)
+
+	// Add Egress policy / policer
+	err = erx.ERXOutputInterfaceFilter_AddString(resp, filter_out)
+	if err != nil {
+		log.Errorf("Error adding egress interface filter %v", err)
+	}
+	log.Debugf("Added output filter %v for user %v", filter_out, username)
+
+	log.Printf("User authenticated successfully %s", username)
+
+	writeResponse(w, resp, userInfo)
+}
+
 func AuthServer(subs []Subscriber) {
 	subscribers = subs
 
+	handler := AuthHandler
+
+	if !Config.AuthEnabled {
+		handler = AllowAllAuthHandler
+	}
+
 	AuthServer := radius.PacketServer{
 		Addr:         Config.AuthListenAddress,
-		Handler:      radius.HandlerFunc(AuthHandler),
+		Handler:      radius.HandlerFunc(handler),
 		SecretSource: radius.StaticSecretSource([]byte(Config.RadiusSecret)),
 	}
 
