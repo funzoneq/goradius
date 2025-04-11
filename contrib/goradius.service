@@ -9,6 +9,7 @@ User=goradius
 Group=goradius
 Restart=on-failure
 RestartSec=10
+#ExecStart=/usr/local/bin/goradius -debug
 ExecStart=/usr/local/bin/goradius
 
 [Install]

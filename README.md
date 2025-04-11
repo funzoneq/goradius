@@ -30,8 +30,50 @@ You can run goradius in two modes: Authenticated or Unauthenticated.
 ## Unauthenticated mode
 In unauthenticated mode, we will allow everybody in and give them a default filter of 1G and place them in the BNG-NAT VRF.
 
+### goradius.conf
+```
+{
+    "AuthEnabled": false,
+    "DefaultVRF": "BNG-NAT",
+    "DefaultUploadSpeed": "1G",
+    "DefaultDownloadSpeed": "1G"
+}
+```
+
 ## Authenticated mode
 In authenticated mode goradius will compare the customer to the customers.json file. If a customer is not found or not active, they will be denied access.
 
+### goradius.conf
+```
+{
+    "CustomerFile": "/etc/goradius/customers.json",
+    "CaptivePortalEnabled": false,
+    "AuthEnabled": true
+}
+```
+
 ## Captive portal mode
 In authenticated mode with captive portal enabled, customers that are not found or not active will be allowed access to the Portal VRF. In this VRF, any request they make via a webbrowser will be transported to a captive portal where customers can either sign up or update their billing information.
+
+### goradius.conf
+```
+{
+    "CustomerFile": "/etc/goradius/customers.json",
+    "CaptivePortalEnabled": true,
+    "AuthEnabled": true
+}
+```
+
+# Installation on Debian/Ubuntu
+
+```
+curl -OL https://github.com/funzoneq/goradius/releases/download/v0.0.<version>/goradius_Linux_x86_64.tar.gz
+tar -zxf goradius_Linux_x86_64.tar.gz
+sudo mv goradius /usr/local/bin/goradius
+sudo chmod +x /usr/local/bin/goradius
+sudo vi /etc/goradius/goradius.conf
+sudo curl -o /usr/lib/systemd/system/goradius.service -L https://raw.githubusercontent.com/funzoneq/goradius/refs/heads/main/contrib/goradius.service
+sudo systemctl daemon-reload
+sudo systemctl enable goradius
+sudo systemctl start goradius
+```
