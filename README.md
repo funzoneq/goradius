@@ -66,14 +66,4 @@ In authenticated mode with captive portal enabled, customers that are not found 
 
 # Installation on Debian/Ubuntu
 
-```
-curl -OL https://github.com/funzoneq/goradius/releases/download/v0.0.<version>/goradius_Linux_x86_64.tar.gz
-tar -zxf goradius_Linux_x86_64.tar.gz
-sudo mv goradius /usr/local/bin/goradius
-sudo chmod +x /usr/local/bin/goradius
-sudo vi /etc/goradius/goradius.conf
-sudo curl -o /usr/lib/systemd/system/goradius.service -L https://raw.githubusercontent.com/funzoneq/goradius/refs/heads/main/contrib/goradius.service
-sudo systemctl daemon-reload
-sudo systemctl enable goradius
-sudo systemctl start goradius
-```
+See [INSTALLATION](INSTALLATION.md)
